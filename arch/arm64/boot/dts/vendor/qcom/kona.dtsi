@@ -3843,7 +3843,7 @@
 
 				msm_cdsp_rm: qcom,msm_cdsp_rm {
 					compatible = "qcom,msm-cdsp-rm";
-					qcom,qos-latency-us = <44>;
+					qcom,qos-latency-us = <55>;
 					qcom,qos-maxhold-ms = <20>;
 					qcom,qos-cores = <0 1 2 3>;
 					qcom,compute-cx-limit-en;

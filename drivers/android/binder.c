@@ -625,11 +625,9 @@ struct binder_transaction {
 	int debug_id;
 	struct binder_work work;
 	struct binder_thread *from;
-#ifdef CONFIG_XIAOMI_MIUI
 	int async_from_pid;
 	int async_from_tid;
 	u64 timesRecord;
-#endif
 	struct binder_transaction *from_parent;
 	struct binder_proc *to_proc;
 	struct binder_thread *to_thread;
@@ -1278,14 +1276,7 @@ static void binder_transaction_priority(struct task_struct *task,
 	t->saved_priority.prio = task->normal_prio;
 
 	if (!inherit_rt && is_rt_policy(desired_prio.sched_policy)) {
-#ifdef CONFIG_BINDER_OPT
-		// MIUI MOD:
-		// We boost some app process to FIFO, but binder out thread
-		// from fifo has low priority, so we modify priority higher.
 		desired_prio.prio = NICE_TO_PRIO(-10);
-#else
-		desired_prio.prio = NICE_TO_PRIO(0);
-#endif
 		desired_prio.sched_policy = SCHED_NORMAL;
 	}
 
@@ -3320,16 +3311,13 @@ static void binder_transaction(struct binder_proc *proc,
 			     (u64)extra_buffers_size);
 	if (!reply && !(tr->flags & TF_ONE_WAY)) {
 		t->from = thread;
-#ifdef CONFIG_XIAOMI_MIUI
 		t->async_from_pid = -1;
 		t->async_from_tid = -1;
-#endif
 	} else {
 		t->from = NULL;
-#ifdef CONFIG_XIAOMI_MIUI
 		t->async_from_pid = thread->proc->pid;
 		t->async_from_tid = thread->pid;
-#endif
+
 	}
 	t->sender_euid = task_euid(proc->tsk);
 	t->to_proc = target_proc;
@@ -4932,10 +4920,8 @@ static int binder_thread_release(struct binder_proc *proc,
 			t = t->to_parent;
 		} else if (t->from == thread) {
 			t->from = NULL;
-#ifdef CONFIG_XIAOMI_MIUI
 			t->async_from_pid = -1;
 			t->async_from_tid = -1;
-#endif
 			t = t->from_parent;
 		} else
 			BUG();

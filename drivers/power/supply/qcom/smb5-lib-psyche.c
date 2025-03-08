@@ -10299,21 +10299,21 @@ static void smblib_charger_type_recheck(struct work_struct *work)
 	if (chg->typec_port && !chg->pr_swap_in_progress) {
 
 		/*
-			* Schedule the work to differentiate actual removal
-			* of cable and detach interrupt during role swap,
-			* unregister the partner only during actual cable
-			* removal.
-			*/
+		 * Schedule the work to differentiate actual removal
+		 * of cable and detach interrupt during role swap,
+		 * unregister the partner only during actual cable
+		 * removal.
+		 */
 		cancel_delayed_work(&chg->pr_swap_detach_work);
 		vote(chg->awake_votable, DETACH_DETECT_VOTER, true, 0);
 		schedule_delayed_work(&chg->pr_swap_detach_work,
 			msecs_to_jiffies(TYPEC_DETACH_DETECT_DELAY_MS));
 		smblib_force_dr_mode(chg, TYPEC_PORT_DRP);
 		/*
-			* To handle cable removal during role
-			* swap failure.
-			*/
-		chg->typec_role_swap_failed = false;
+		 * To handle cable removal during role
+		 * swap failure.
+		 */
+                  chg->typec_role_swap_failed = false;
 	}
 
 	if (!chg->recheck_charger)

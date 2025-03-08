@@ -43,7 +43,9 @@ Other Features/Improvement of this Kernel:
     You have to have the basic common toolchains, such as `git`, `make`, `curl`, `bison`, `flex`, `zip`, etc, and some other packages.
     In Debian/Ubuntu, you can
     ```
-    sudo apt install build-essential git curl wget bison flex zip bc cpio libssl-dev ccache
+    sudo add-apt-repository universe
+    sudo apt update
+    sudo apt install bc binutils-dev bison build-essential ca-certificates ccache clang cmake cpio curl file flex git libelf-dev libssl-dev lld       make ninja-build python3-dev texinfo u-boot-tools xz-utils zlib1g-dev
     ```
     And also, you have to have `python` (only `python3` is not enough). you can install the apt package `python-is-python3`.
 
@@ -55,41 +57,22 @@ Other Features/Improvement of this Kernel:
 
     Notice: `ccache` is enabled in `build.sh` for speed up the compiling. `CCACHE_DIR` has been set as `$HOME/.cache/ccache_mikernel` in `build.sh`. If you don't like you can remove or modify it.
 
-2. Download [proton-clang] compiler toolchain
+2. Download [ZYC-clang] compiler toolchain or any latest toolchain
 
-    You have to have `aarch64-linux-gnu`, `arm-linux-gnueabi`, `clang`. [Proton Clang](https://github.com/kdrag0n/proton-clang/) is a good prebuilt clang cross compiler toolchain.
+    You have to have `aarch64-linux-gnu`, `arm-linux-gnueabi`, `clang`. [ZYC Clang](https://github.com/ZyCromerZ/Clang.git) is a good prebuilt clang cross compiler toolchain.
 
-    The default toolchain path is `$HOME/proton-clang/proton-clang-20210522/bin` which is set in `build.sh`. If you are using another location please change `TOOLCHAIN_PATH` in `build.sh`.
-
-    ```
-    mkdir proton-clang
-    cd proton-clang
-    wget https://github.com/kdrag0n/proton-clang/archive/refs/tags/20210522.zip
-    unzip 20210522.zip
-    cd ..
-    ```
 
 3. Build
 
-    Build without KernelSU: 
+    Build Kernel: 
     ```
     bash build.sh TARGET_DEVICE
     ```
-    
-    Build with KernelSU:
-    ```
-    bash build.sh TARGET_DEVICE ksu
-    ```
 
-    For example, build for lmi (Redmi K30 Pro/POCO F2 Pro) without KernelSU:
+    For example, build for pipa (Xiaomi Pad 6):
     ```
     bash build.sh pipa
     ````
-
-    For example, build for umi (Mi 10) with KernelSU:
-    ```
-    bash build.sh pipa ksu
-    ```
 
     And also, here is a `buildall.sh` can build for all supported models at once.
 

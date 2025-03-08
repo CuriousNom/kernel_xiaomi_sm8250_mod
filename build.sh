@@ -5,18 +5,15 @@
 # Ensure the script exits on error
 set -e
 
-TOOLCHAIN_PATH=$HOME/proton-clang/proton-clang-20210522/bin
+TOOLCHAIN_PATH=$HOME/tc/bin
 GIT_COMMIT_ID=$(git rev-parse --short=8 HEAD)
 TARGET_DEVICE=$1
 
 if [ -z "$1" ]; then
     echo "Error: No argument provided, please specific a target device." 
-    echo "If you need KernelSU, please add [ksu] as the second arg."
     echo "Examples:"
-    echo "Build for lmi(K30 Pro/POCO F2 Pro) without KernelSU:"
-    echo "    bash build.sh lmi"
-    echo "Build for umi(Mi10) with KernelSU:"
-    echo "    bash build.sh umi ksu"
+    echo "Build for pipa(Xiaomi Pad 6) :"
+    echo "    bash build.sh pipa"
     exit 1
 fi
 
@@ -55,7 +52,7 @@ export PATH="/usr/lib/ccache:$PATH"
 echo "CCACHE_DIR: [$CCACHE_DIR]"
 
 
-MAKE_ARGS="ARCH=arm64 SUBARCH=arm64 O=out CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu-"
+MAKE_ARGS="ARCH=arm64 O=out LLVM=1 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip"
 
 
 if [ "$1" == "j1" ]; then
@@ -64,7 +61,7 @@ if [ "$1" == "j1" ]; then
 fi
 
 if [ "$1" == "continue" ]; then
-    make $MAKE_ARGS -j$(nproc)
+    make $MAKE_ARGS -j$(nproc --all)
     exit
 fi
 
@@ -80,26 +77,7 @@ fi
 echo "[clang --version]:"
 clang --version
 
-
-
-KSU_ZIP_STR=NoKernelSU
-if [ "$2" == "ksu" ]; then
-    KSU_ENABLE=1
-    KSU_ZIP_STR=KernelSU
-else
-    KSU_ENABLE=0
-fi
-
-
 echo "TARGET_DEVICE: $TARGET_DEVICE"
-
-if [ $KSU_ENABLE -eq 1 ]; then
-    echo "KSU is enabled"
-    curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
-else
-    echo "KSU is disabled"
-fi
-
 
 echo "Cleaning..."
 
@@ -108,60 +86,6 @@ rm -rf anykernel/
 
 echo "Clone AnyKernel3 for packing kernel (repo: https://github.com/liyafe1997/AnyKernel3)"
 git clone https://github.com/liyafe1997/AnyKernel3 -b kona --single-branch --depth=1 anykernel
-
-# Add date to local version
-local_version_str="-perf"
-local_version_date_str="-$(date +%Y%m%d)-${GIT_COMMIT_ID}-perf"
-
-sed -i "s/${local_version_str}/${local_version_date_str}/g" arch/arm64/configs/${TARGET_DEVICE}_defconfig
-
-# ------------- Building for AOSP -------------
-
-echo "Building for AOSP......"
-make $MAKE_ARGS ${TARGET_DEVICE}_defconfig
-
-if [ $KSU_ENABLE -eq 1 ]; then
-    scripts/config --file out/.config -e KSU
-else
-    scripts/config --file out/.config -d KSU
-fi
-
-make $MAKE_ARGS -j$(nproc)
-
-
-if [ -f "out/arch/arm64/boot/Image" ]; then
-    echo "The file [out/arch/arm64/boot/Image] exists. AOSP Build successfully."
-else
-    echo "The file [out/arch/arm64/boot/Image] does not exist. Seems AOSP build failed."
-    exit 1
-fi
-
-echo "Generating [out/arch/arm64/boot/dtb]......"
-find out/arch/arm64/boot/dts -name '*.dtb' -exec cat {} + >out/arch/arm64/boot/dtb
-
-rm -rf anykernel/kernels/
-
-mkdir -p anykernel/kernels/
-
-cp out/arch/arm64/boot/Image anykernel/kernels/
-cp out/arch/arm64/boot/dtb anykernel/kernels/
-
-cd anykernel 
-
-ZIP_FILENAME=Kernel_AOSP_${TARGET_DEVICE}_${KSU_ZIP_STR}_$(date +'%Y%m%d_%H%M%S')_anykernel3_${GIT_COMMIT_ID}.zip
-
-zip -r9 $ZIP_FILENAME ./* -x .git .gitignore out/ ./*.zip
-
-mv $ZIP_FILENAME ../
-
-cd ..
-
-
-echo "Build for AOSP finished."
-
-# ------------- End of Building for AOSP -------------
-#  If you don't need AOSP you can comment out the above block [Building for AOSP]
-
 
 # ------------- Building for MIUI -------------
 
@@ -227,15 +151,7 @@ sed -i 's/\/\/39 01 00 00 00 00 05 51 07 FF 00 00/39 01 00 00 00 00 05 51 07 FF 
 sed -i 's/\/\/39 01 00 00 01 00 03 51 03 FF/39 01 00 00 01 00 03 51 03 FF/g' ${dts_source}/dsi-panel-j11-38-08-0a-fhd-cmd.dtsi
 sed -i 's/\/\/39 01 00 00 11 00 03 51 03 FF/39 01 00 00 11 00 03 51 03 FF/g' ${dts_source}/dsi-panel-j2-p2-1-38-0c-0a-dsc-cmd.dtsi
 
-
 make $MAKE_ARGS ${TARGET_DEVICE}_defconfig
-
-if [ $KSU_ENABLE -eq 1 ]; then
-    scripts/config --file out/.config -e KSU
-else
-    scripts/config --file out/.config -d KSU
-fi
-
 
 scripts/config --file out/.config \
     --set-str STATIC_USERMODEHELPER_PATH /system/bin/micd \
@@ -266,7 +182,7 @@ scripts/config --file out/.config \
     -e MI_RECLAIM \
     -e RTMM \
 
-make $MAKE_ARGS -j$(nproc)
+make $MAKE_ARGS -j$(nproc --all)
 
 
 
@@ -293,16 +209,13 @@ cp out/arch/arm64/boot/dtb anykernel/kernels/
 
 echo "Build for MIUI finished."
 
-# Restore local version string
-sed -i "s/${local_version_date_str}/${local_version_str}/g" arch/arm64/configs/${TARGET_DEVICE}_defconfig
-
 # ------------- End of Building for MIUI -------------
 #  If you don't need MIUI you can comment out the above block [Building for MIUI]
 
 
 cd anykernel 
 
-ZIP_FILENAME=Kernel_MIUI_${TARGET_DEVICE}_${KSU_ZIP_STR}_$(date +'%Y%m%d_%H%M%S')_anykernel3_${GIT_COMMIT_ID}.zip
+ZIP_FILENAME=Kernel_MIUI_${TARGET_DEVICE}_$(date +'%Y%m%d_%H%M%S')_anykernel3_${GIT_COMMIT_ID}.zip
 
 zip -r9 $ZIP_FILENAME ./* -x .git .gitignore out/ ./*.zip
 

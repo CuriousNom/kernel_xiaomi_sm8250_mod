@@ -135,4 +135,7 @@ all.config
 # fetched Android config fragments
 kernel/configs/android-*.cfg
 
+tc/
 out/
+anykernel/
+error.txt

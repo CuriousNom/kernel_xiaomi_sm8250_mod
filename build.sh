@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# Some logics of this script are copied from [scripts/build_kernel]. Thanks to UtsavBalar1231.
-
 # Ensure the script exits on error
 set -e
 
@@ -10,14 +8,23 @@ GIT_COMMIT_ID=$(git rev-parse --short=8 HEAD)
 TARGET_DEVICE=$1
 
 if [ -z "$1" ]; then
-    echo "Error: No argument provided, please specific a target device." 
+    echo "Error: No argument provided, please specify a target device."
     echo "Examples:"
-    echo "Build for pipa(Xiaomi Pad 6) :"
+    echo "Build for pipa(Xiaomi Pad 6):"
     echo "    bash build.sh pipa"
     exit 1
 fi
 
+# Ask user which build to run
+echo "Choose build type:"
+echo "1) AOSP"
+echo "2) MIUI/HOS"
+read -p "Enter 1 or 2: " build_choice
 
+if [[ "$build_choice" != "1" && "$build_choice" != "2" ]]; then
+    echo "Invalid choice. Exiting."
+    exit 1
+fi
 
 if [ ! -d $TOOLCHAIN_PATH ]; then
     echo "TOOLCHAIN_PATH [$TOOLCHAIN_PATH] does not exist."
@@ -43,7 +50,6 @@ if ! command -v clang >/dev/null 2>&1; then
     exit 1
 fi
 
-
 # Enable ccache for speed up compiling 
 export CCACHE_DIR="$HOME/.cache/ccache_mikernel" 
 export CC="ccache gcc"
@@ -51,9 +57,8 @@ export CXX="ccache g++"
 export PATH="/usr/lib/ccache:$PATH"
 echo "CCACHE_DIR: [$CCACHE_DIR]"
 
-
-MAKE_ARGS="ARCH=arm64 O=out LLVM=1 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip"
-
+MAKE_ARGS_AOSP="ARCH=arm64 O=out CC=clang LLVM=1 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip"
+MAKE_ARGS="ARCH=arm64 O=out CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-"
 
 if [ "$1" == "j1" ]; then
     make $MAKE_ARGS -j1
@@ -67,31 +72,61 @@ fi
 
 if [ ! -f "arch/arm64/configs/${TARGET_DEVICE}_defconfig" ]; then
     echo "No target device [${TARGET_DEVICE}] found."
-    echo "Avaliable defconfigs, please choose one target from below down:"
+    echo "Available defconfigs, please choose one target from below down:"
     ls arch/arm64/configs/*_defconfig
     exit 1
 fi
-
 
 # Check clang is existing.
 echo "[clang --version]:"
 clang --version
 
+# Export variables
+export KBUILD_BUILD_USER="aryan"
+export KBUILD_BUILD_HOST="stormvault"
+
 echo "TARGET_DEVICE: $TARGET_DEVICE"
-
 echo "Cleaning..."
-
 rm -rf out/
 rm -rf anykernel/
 
-echo "Clone AnyKernel3 for packing kernel (repo: https://github.com/liyafe1997/AnyKernel3)"
+echo "Clone AnyKernel3 for packing kernel"
 git clone https://github.com/liyafe1997/AnyKernel3 -b kona --single-branch --depth=1 anykernel
 
-# ------------- Building for MIUI -------------
+if [ "$build_choice" == "1" ]; then
+    # ------------- Building for AOSP -------------
+    echo "Building for AOSP......"
+    make $MAKE_ARGS_AOSP ${TARGET_DEVICE}_defconfig
 
+    make $MAKE_ARGS_AOSP -j$(nproc --all) 2> >(tee -a error.txt >&2)
 
-echo "Clearning [out/] and build for MIUI....."
-rm -rf out/
+    if [ -f "out/arch/arm64/boot/Image" ]; then
+        echo "The file [out/arch/arm64/boot/Image] exists. AOSP Build successfully."
+    else
+        echo "The file [out/arch/arm64/boot/Image] does not exist. Seems AOSP build failed."
+        exit 1
+    fi
+
+    echo "Generating [out/arch/arm64/boot/dtb]......"
+    find out/arch/arm64/boot/dts -name '*.dtb' -exec cat {} + >out/arch/arm64/boot/dtb
+
+    rm -rf anykernel/kernels/
+    mkdir -p anykernel/kernels/
+    cp out/arch/arm64/boot/Image anykernel/kernels/
+    cp out/arch/arm64/boot/dtb anykernel/kernels/
+
+    cd anykernel
+    ZIP_FILENAME=Kernel_BloodReaper_AOSP_${TARGET_DEVICE}_$(date +'%Y%m%d_%H%M%S')_anykernel3_${GIT_COMMIT_ID}.zip
+    zip -r9 $ZIP_FILENAME ./* -x .git .gitignore out/ ./*.zip
+    mv $ZIP_FILENAME ../
+    cd ..
+
+    echo "Build for AOSP finished."
+
+elif [ "$build_choice" == "2" ]; then
+    # ------------- Building for MIUI/HOS -------------
+    echo "Clearing [out/] and building for MIUI/HOS....."
+    rm -rf out/
 
 dts_source=arch/arm64/boot/dts/vendor/qcom
 
@@ -151,7 +186,7 @@ sed -i 's/\/\/39 01 00 00 00 00 05 51 07 FF 00 00/39 01 00 00 00 00 05 51 07 FF 
 sed -i 's/\/\/39 01 00 00 01 00 03 51 03 FF/39 01 00 00 01 00 03 51 03 FF/g' ${dts_source}/dsi-panel-j11-38-08-0a-fhd-cmd.dtsi
 sed -i 's/\/\/39 01 00 00 11 00 03 51 03 FF/39 01 00 00 11 00 03 51 03 FF/g' ${dts_source}/dsi-panel-j2-p2-1-38-0c-0a-dsc-cmd.dtsi
 
-make $MAKE_ARGS ${TARGET_DEVICE}_defconfig
+    make $MAKE_ARGS ${TARGET_DEVICE}_defconfig
 
 scripts/config --file out/.config \
     --set-str STATIC_USERMODEHELPER_PATH /system/bin/micd \
@@ -166,9 +201,8 @@ scripts/config --file out/.config \
     -e BINDER_OPT \
     -e KPERFEVENTS \
     -e MILLET \
-    -e PERF_HUMANTASK \
-    -d LTO_CLANG \
     -d LOCALVERSION_AUTO \
+    -e PERF_HUMANTASK \
     -e SF_BINDER \
     -e XIAOMI_MIUI \
     -d MI_MEMORY_SYSFS \
@@ -182,45 +216,30 @@ scripts/config --file out/.config \
     -e MI_RECLAIM \
     -e RTMM \
 
-make $MAKE_ARGS -j$(nproc --all) 2> >(tee -a error.txt >&2)
+    make $MAKE_ARGS -j$(nproc --all) 2> >(tee -a error.txt >&2)
 
+    if [ -f "out/arch/arm64/boot/Image" ]; then
+        echo "The file [out/arch/arm64/boot/Image] exists. MIUI Build successfully."
+    else
+        echo "The file [out/arch/arm64/boot/Image] does not exist. Seems MIUI build failed."
+        exit 1
+    fi
 
+    echo "Generating [out/arch/arm64/boot/dtb]......"
+    find out/arch/arm64/boot/dts -name '*.dtb' -exec cat {} + >out/arch/arm64/boot/dtb
 
-if [ -f "out/arch/arm64/boot/Image" ]; then
-    echo "The file [out/arch/arm64/boot/Image] exists. MIUI Build successfully."
-else
-    echo "The file [out/arch/arm64/boot/Image] does not exist. Seems MIUI build failed."
-    exit 1
+    rm -rf anykernel/kernels/
+    mkdir -p anykernel/kernels/
+    cp out/arch/arm64/boot/Image anykernel/kernels/
+    cp out/arch/arm64/boot/dtb anykernel/kernels/
+
+    cd anykernel
+    ZIP_FILENAME=Kernel_BloodReaper_MIUI_${TARGET_DEVICE}_$(date +'%Y%m%d_%H%M%S')_anykernel3_${GIT_COMMIT_ID}.zip
+    zip -r9 $ZIP_FILENAME ./* -x .git .gitignore out/ ./*.zip
+    mv $ZIP_FILENAME ../
+    cd ..
+
+    echo "Build for MIUI/HOS finished."
 fi
-
-echo "Generating [out/arch/arm64/boot/dtb]......"
-find out/arch/arm64/boot/dts -name '*.dtb' -exec cat {} + >out/arch/arm64/boot/dtb
-
-
-# Restore modified dts
-rm -rf ${dts_source}
-mv .dts.bak ${dts_source}
-
-rm -rf anykernel/kernels/
-mkdir -p anykernel/kernels/
-
-cp out/arch/arm64/boot/Image anykernel/kernels/
-cp out/arch/arm64/boot/dtb anykernel/kernels/
-
-echo "Build for MIUI finished."
-
-# ------------- End of Building for MIUI -------------
-#  If you don't need MIUI you can comment out the above block [Building for MIUI]
-
-
-cd anykernel 
-
-ZIP_FILENAME=Kernel_MIUI_${TARGET_DEVICE}_$(date +'%Y%m%d_%H%M%S')_anykernel3_${GIT_COMMIT_ID}.zip
-
-zip -r9 $ZIP_FILENAME ./* -x .git .gitignore out/ ./*.zip
-
-mv $ZIP_FILENAME ../
-
-cd ..
 
 echo "Done. The flashable zip is: [./$ZIP_FILENAME]"

@@ -1016,9 +1016,10 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 		mi_cfg->dc_enable = false;
 	}
 	mi_cfg->last_bl_level = bl_lvl;
-	if (bl_lvl)
+	if (bl_lvl) {
 		mi_cfg->last_nonzero_bl_level = bl_lvl;
 	        bl->real_bl_level = bl_lvl;
+        }
 	return rc;
 }
 

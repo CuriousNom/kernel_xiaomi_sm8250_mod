@@ -96,7 +96,7 @@ git clone https://github.com/liyafe1997/AnyKernel3 -b kona --single-branch --dep
 if [ "$build_choice" == "1" ]; then
     # ------------- Building for AOSP -------------
     echo "Building for AOSP......"
-    make $MAKE_ARGS_AOSP ${TARGET_DEVICE}_defconfig
+    make $MAKE_ARGS_AOSP ${TARGET_DEVICE}_aosp_defconfig
 
     make $MAKE_ARGS_AOSP -j$(nproc --all) 2> >(tee -a error.txt >&2)
 
@@ -187,34 +187,6 @@ sed -i 's/\/\/39 01 00 00 01 00 03 51 03 FF/39 01 00 00 01 00 03 51 03 FF/g' ${d
 sed -i 's/\/\/39 01 00 00 11 00 03 51 03 FF/39 01 00 00 11 00 03 51 03 FF/g' ${dts_source}/dsi-panel-j2-p2-1-38-0c-0a-dsc-cmd.dtsi
 
     make $MAKE_ARGS ${TARGET_DEVICE}_defconfig
-
-scripts/config --file out/.config \
-    --set-str STATIC_USERMODEHELPER_PATH /system/bin/micd \
-    -e PERF_CRITICAL_RT_TASK	\
-    -e SF_BINDER		\
-    -e OVERLAY_FS		\
-    -d DEBUG_FS \
-    -e MIGT \
-    -e MIGT_ENERGY_MODEL \
-    -e MIHW \
-    -e PACKAGE_RUNTIME_INFO \
-    -e BINDER_OPT \
-    -e KPERFEVENTS \
-    -e MILLET \
-    -d LOCALVERSION_AUTO \
-    -e PERF_HUMANTASK \
-    -e SF_BINDER \
-    -e XIAOMI_MIUI \
-    -d MI_MEMORY_SYSFS \
-    -e TASK_DELAY_ACCT \
-    -e MIUI_ZRAM_MEMORY_TRACKING \
-    -d CONFIG_MODULE_SIG_SHA512 \
-    -d CONFIG_MODULE_SIG_HASH \
-    -e MI_FRAGMENTION \
-    -e PERF_HELPER \
-    -e BOOTUP_RECLAIM \
-    -e MI_RECLAIM \
-    -e RTMM \
 
     make $MAKE_ARGS -j$(nproc --all) 2> >(tee -a error.txt >&2)
 
